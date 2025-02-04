@@ -2,7 +2,11 @@ const std = @import("std");
 const net = std.net;
 
 pub fn main() !void {
-    const stdout = std.io.getStdOut().writer();
+    var pool: std.Thread.Pool = undefined;
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    const alloc = gpa.allocator();
+
+    try std.Thread.Pool.init(&pool, .{ .allocator = alloc, .n_jobs = 16 });
 
     const address = try net.Address.resolveIp("127.0.0.1", 6379);
 
@@ -12,10 +16,27 @@ pub fn main() !void {
     defer listener.deinit();
 
     while (true) {
+        // Create connection
         const connection = try listener.accept();
-
-        try stdout.print("accepted new connection", .{});
-        try connection.stream.writeAll("+PONG\r\n");
-        connection.stream.close();
+        // Accept concurrent connections
+        try pool.spawn(handler, .{connection});
     }
+}
+
+// Handls connection
+fn handler(connection: net.Server.Connection) void {
+    const reader = connection.stream.reader();
+
+    // Read from connection
+    var buffer: [1024]u8 = undefined;
+    while (true) {
+        const bytesRead = reader.read(&buffer) catch break;
+        if (bytesRead <= 0) {
+            break;
+        }
+        connection.stream.writeAll("+PONG\r\n") catch {
+            //TODO
+        };
+    }
+    connection.stream.close();
 }
