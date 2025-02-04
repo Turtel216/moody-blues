@@ -4,6 +4,9 @@ const net = std.net;
 pub fn main() !void {
     var pool: std.Thread.Pool = undefined;
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer {
+        _ = gpa.deinit();
+    }
     const alloc = gpa.allocator();
 
     try std.Thread.Pool.init(&pool, .{ .allocator = alloc, .n_jobs = 16 });
